@@ -66,6 +66,12 @@ class EtsyRateLimiter:
         self._check_daily_reset()
         return max(0, self.MAX_PER_DAY - self._daily_count)
 
+    @property
+    def daily_count(self) -> int:
+        """Get number of API calls made today."""
+        self._check_daily_reset()
+        return self._daily_count
+
 
 # Singleton instance
 rate_limiter = EtsyRateLimiter()

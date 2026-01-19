@@ -23,6 +23,8 @@ async def get_dashboard_metrics(
     _: str = Depends(get_current_user),
 ) -> DashboardMetrics:
     """Get overview dashboard metrics."""
+    from app.services.etsy import oauth_service, rate_limiter
+
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=today_start.weekday())
@@ -85,6 +87,10 @@ async def get_dashboard_metrics(
     avg_rating = float(satisfaction_row[0]) if satisfaction_row[0] else 0.0
     total_ratings = satisfaction_row[1] or 0
 
+    # Check Etsy connection status
+    etsy_token = await oauth_service.get_valid_token(db)
+    etsy_connected = etsy_token is not None
+
     return DashboardMetrics(
         orders={
             "pending": pending_count,
@@ -101,16 +107,16 @@ async def get_dashboard_metrics(
             "total_ratings": total_ratings,
         },
         api_status={
-            "etsy_connected": False,  # TODO: Check actual connection status
-            "etsy_requests_today": 0,
-            "etsy_rate_limit_remaining": 10000,
+            "etsy_connected": etsy_connected,
+            "etsy_requests_today": rate_limiter.daily_count,
+            "etsy_rate_limit_remaining": rate_limiter.daily_remaining,
         },
     )
 
 
 @router.get("/orders", response_model=OrderMetrics)
 async def get_order_metrics(
-    period: str = Query("week", regex="^(day|week|month|year)$"),
+    period: str = Query("week", pattern="^(day|week|month|year)$"),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ) -> OrderMetrics:

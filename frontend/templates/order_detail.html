@@ -203,9 +203,11 @@
 
                     this.order = await response.json();
 
-                    // Load current spell if exists
-                    // For now, we'll need to fetch spells separately
-                    // This would be enhanced with proper API
+                    // Load current spell from order response
+                    if (this.order.current_spell) {
+                        this.currentSpell = this.order.current_spell;
+                        this.editedContent = this.currentSpell.content;
+                    }
                 } catch (err) {
                     console.error('Failed to load order:', err);
                 } finally {
@@ -218,12 +220,19 @@
                 const token = localStorage.getItem('token');
 
                 try {
-                    const response = await fetch(`/api/v1/orders/${this.orderId}/spells/regenerate`, {
+                    const response = await fetch(`/api/v1/orders/${this.orderId}/spells/generate`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
                     });
 
-                    if (!response.ok) throw new Error('Failed to generate spell');
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to generate spell');
+                    }
 
                     this.currentSpell = await response.json();
                     this.editedContent = this.currentSpell.content;
@@ -236,9 +245,37 @@
             },
 
             async regenerateSpell() {
+                if (!this.currentSpell) {
+                    await this.generateSpell();
+                    return;
+                }
+
                 this.regenerating = true;
-                await this.generateSpell();
-                this.regenerating = false;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/regenerate`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to regenerate spell');
+                    }
+
+                    this.currentSpell = await response.json();
+                    this.editedContent = this.currentSpell.content;
+                    await this.loadOrder();
+                } catch (err) {
+                    alert('Failed to regenerate spell: ' + err.message);
+                } finally {
+                    this.regenerating = false;
+                }
             },
 
             async saveEdit() {

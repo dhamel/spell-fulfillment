@@ -3,7 +3,9 @@
 from fastapi import APIRouter
 
 from app.api.v1 import auth, etsy, health, metrics, orders, spells, spell_types, tasks
+from app.config import get_settings
 
+settings = get_settings()
 api_router = APIRouter()
 
 # Health check
@@ -29,3 +31,9 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
 # Metrics
 api_router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+
+# Development-only endpoints (not loaded in production)
+if settings.ENVIRONMENT != "production":
+    from app.api.v1 import dev
+
+    api_router.include_router(dev.router, prefix="/dev", tags=["development"])

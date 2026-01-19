@@ -65,8 +65,9 @@ async def get_order(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ) -> OrderDetail:
-    """Get order detail with associated spells."""
+    """Get order detail with current spell."""
     from app.models.spell import Spell
+    from app.schemas.spell import SpellDetail
 
     result = await db.execute(select(Order).where(Order.id == order_id))
     order = result.scalar_one_or_none()
@@ -77,13 +78,18 @@ async def get_order(
             detail="Order not found",
         )
 
-    # Get associated spells
-    spells_result = await db.execute(
-        select(Spell).where(Spell.order_id == order_id).order_by(Spell.version.desc())
+    # Get current spell
+    spell_result = await db.execute(
+        select(Spell).where(Spell.order_id == order_id, Spell.is_current == True)
     )
-    spells = spells_result.scalars().all()
+    current_spell = spell_result.scalar_one_or_none()
 
-    return OrderDetail.model_validate(order, from_attributes=True)
+    # Build response with spell
+    order_data = OrderDetail.model_validate(order, from_attributes=True)
+    if current_spell:
+        order_data.current_spell = SpellDetail.model_validate(current_spell, from_attributes=True)
+
+    return order_data
 
 
 @router.patch("/{order_id}", response_model=OrderDetail)

@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from app.models.order import OrderStatus
+from app.schemas.spell import SpellDetail
 
 
 class OrderBase(BaseModel):
@@ -48,6 +49,7 @@ class OrderDetail(OrderSummary):
     etsy_order_date: Optional[datetime]
     order_total_cents: Optional[int]
     currency_code: str
+    current_spell: Optional[SpellDetail] = None
 
 
 class OrderList(BaseModel):
