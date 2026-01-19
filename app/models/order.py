@@ -52,7 +52,9 @@ class Order(Base, TimestampMixin):
 
     # Status
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False
+        Enum(OrderStatus, values_callable=lambda x: [e.value for e in x]),
+        default=OrderStatus.PENDING,
+        nullable=False,
     )
 
     # Order details

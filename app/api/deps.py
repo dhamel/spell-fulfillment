@@ -35,21 +35,36 @@ def _decode_token(token: str) -> str:
     return username
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
-    """Get current authenticated user from JWT token (API routes)."""
+async def get_current_user(
+    token: str | None = Depends(oauth2_scheme),
+    access_token: str | None = Cookie(default=None),
+) -> str:
+    """Get current authenticated user from JWT token or cookie.
+
+    Checks Bearer token first, then falls back to cookie.
+    Raises 401 if neither is valid.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    if not token:
-        raise credentials_exception
+    # Try Bearer token first
+    if token:
+        try:
+            return _decode_token(token)
+        except JWTError:
+            pass
 
-    try:
-        return _decode_token(token)
-    except JWTError:
-        raise credentials_exception
+    # Fall back to cookie
+    if access_token:
+        try:
+            return _decode_token(access_token)
+        except JWTError:
+            pass
+
+    raise credentials_exception
 
 
 async def get_current_user_optional(

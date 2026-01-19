@@ -64,10 +64,14 @@ class Task(Base, TimestampMixin):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     status: Mapped[TaskStatus] = mapped_column(
-        Enum(TaskStatus), default=TaskStatus.PENDING, nullable=False
+        Enum(TaskStatus, values_callable=lambda x: [e.value for e in x]),
+        default=TaskStatus.PENDING,
+        nullable=False,
     )
     priority: Mapped[TaskPriority] = mapped_column(
-        Enum(TaskPriority), default=TaskPriority.MEDIUM, nullable=False
+        Enum(TaskPriority, values_callable=lambda x: [e.value for e in x]),
+        default=TaskPriority.MEDIUM,
+        nullable=False,
     )
 
     due_date: Mapped[Optional[datetime]] = mapped_column(

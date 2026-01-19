@@ -22,14 +22,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     upload_dir = Path(settings.UPLOAD_DIR)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    # TODO: Initialize database connection pool
-    # TODO: Start background scheduler for Etsy polling
+    # Start background scheduler for Etsy polling
+    from app.services.etsy import start_scheduler
+    start_scheduler()
 
     yield
 
     # Shutdown
-    # TODO: Close database connections
-    # TODO: Stop background scheduler
+    # Stop background scheduler
+    from app.services.etsy import stop_scheduler
+    stop_scheduler()
 
 
 def create_app() -> FastAPI:

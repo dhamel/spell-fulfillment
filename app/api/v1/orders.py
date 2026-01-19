@@ -118,7 +118,17 @@ async def sync_orders(
     _: str = Depends(get_current_user),
 ) -> dict:
     """Manually trigger Etsy order sync."""
-    # TODO: Implement Etsy order sync
-    # from app.services.etsy.orders import sync_new_orders
-    # new_orders = await sync_new_orders(db)
-    return {"message": "Order sync triggered", "new_orders": 0}
+    from app.services.etsy import sync_new_orders, rate_limiter, EtsyAPIError
+
+    try:
+        new_orders = await sync_new_orders(db)
+        return {
+            "message": "Order sync completed",
+            "new_orders": len(new_orders),
+            "daily_api_calls_remaining": rate_limiter.daily_remaining,
+        }
+    except EtsyAPIError as e:
+        raise HTTPException(
+            status_code=e.status_code or 500,
+            detail=str(e),
+        )
