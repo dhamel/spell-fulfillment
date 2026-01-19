@@ -1,18 +1,21 @@
 """Authentication endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.schemas.auth import Token, TokenData
 from app.core.security import create_access_token, verify_password
 from app.api.deps import get_db
+from app.config import get_settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
+settings = get_settings()
 
 
 @router.post("/login", response_model=Token)
 async def login(
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> Token:
@@ -41,7 +44,23 @@ async def login(
 
     access_token = create_access_token(data={"sub": operator.username})
 
+    # Set cookie for browser-based access
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+    )
+
     return Token(access_token=access_token, token_type="bearer")
+
+
+@router.post("/logout")
+async def logout(response: Response) -> dict:
+    """Log out operator by clearing the auth cookie."""
+    response.delete_cookie(key="access_token")
+    return {"message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=TokenData)
