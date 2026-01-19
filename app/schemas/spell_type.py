@@ -2,7 +2,18 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class SpellTypeCreate(BaseModel):
+    """Schema for creating a new spell type."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., min_length=1)
+    prompt_template: Optional[str] = Field(
+        default=None,
+        description="Custom prompt template. If not provided, a default will be used.",
+    )
 
 
 class SpellTypeUpdate(BaseModel):

@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.config import get_settings
 from app.models.spell_type import SpellType
-from app.schemas.spell_type import SpellTypeDetail, SpellTypeList, SpellTypeUpdate
+from app.schemas.spell_type import (
+    SpellTypeCreate,
+    SpellTypeDetail,
+    SpellTypeList,
+    SpellTypeUpdate,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -28,6 +33,76 @@ async def list_spell_types(
     spell_types = result.scalars().all()
 
     return SpellTypeList(items=spell_types)
+
+
+def generate_slug(name: str) -> str:
+    """Generate a URL-friendly slug from a name."""
+    import re
+    slug = name.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_-]+", "-", slug)
+    slug = slug.strip("-")
+    return slug
+
+
+DEFAULT_PROMPT_TEMPLATE = """You are a skilled spell crafter creating a personalized {spell_type} spell.
+
+Customer Name: {customer_name}
+Customer's Intention: {intention}
+
+Create a meaningful, personalized spell that:
+1. Addresses the customer by name
+2. Incorporates their specific intention
+3. Uses appropriate magical language and imagery
+4. Provides clear instructions for the ritual
+5. Includes any necessary materials or timing recommendations
+
+Write the spell in a warm, mystical tone that feels authentic and personal."""
+
+
+@router.post("", response_model=SpellTypeDetail, status_code=status.HTTP_201_CREATED)
+async def create_spell_type(
+    spell_type_data: SpellTypeCreate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+) -> SpellTypeDetail:
+    """Create a new spell type."""
+    # Generate slug from name
+    slug = generate_slug(spell_type_data.name)
+
+    # Check if name or slug already exists
+    existing = await db.execute(
+        select(SpellType).where(
+            (SpellType.name == spell_type_data.name) | (SpellType.slug == slug)
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A spell type with this name already exists",
+        )
+
+    # Get max display order
+    max_order_result = await db.execute(
+        select(SpellType.display_order).order_by(SpellType.display_order.desc()).limit(1)
+    )
+    max_order = max_order_result.scalar() or 0
+
+    # Create the spell type
+    spell_type = SpellType(
+        name=spell_type_data.name,
+        slug=slug,
+        description=spell_type_data.description,
+        prompt_template=spell_type_data.prompt_template or DEFAULT_PROMPT_TEMPLATE,
+        is_active=True,
+        display_order=max_order + 1,
+    )
+
+    db.add(spell_type)
+    await db.commit()
+    await db.refresh(spell_type)
+
+    return SpellTypeDetail.model_validate(spell_type, from_attributes=True)
 
 
 @router.get("/{spell_type_id}", response_model=SpellTypeDetail)

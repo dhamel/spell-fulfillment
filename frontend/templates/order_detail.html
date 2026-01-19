@@ -79,7 +79,15 @@
                             :disabled="approving"
                             class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                         >
-                            <span x-text="approving ? 'Approving...' : 'Approve & Deliver'"></span>
+                            <span x-text="approving ? 'Approving...' : 'Approve'"></span>
+                        </button>
+                        <button
+                            x-show="currentSpell && currentSpell.is_approved && !currentSpell.delivered_at"
+                            @click="deliverSpell()"
+                            :disabled="delivering"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            <span x-text="delivering ? 'Sending...' : 'Send Email'"></span>
                         </button>
                     </div>
                 </div>
@@ -181,6 +189,7 @@
             generating: false,
             regenerating: false,
             approving: false,
+            delivering: false,
             satisfaction: { rating: 0, notes: '' },
 
             async init() {
@@ -207,11 +216,36 @@
                     if (this.order.current_spell) {
                         this.currentSpell = this.order.current_spell;
                         this.editedContent = this.currentSpell.content;
+
+                        // Load existing satisfaction rating if spell is delivered
+                        if (this.currentSpell.delivered_at) {
+                            await this.loadSatisfaction();
+                        }
                     }
                 } catch (err) {
                     console.error('Failed to load order:', err);
                 } finally {
                     this.loading = false;
+                }
+            },
+
+            async loadSatisfaction() {
+                if (!this.currentSpell) return;
+
+                const token = localStorage.getItem('token');
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/satisfaction`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.satisfaction.rating = data.star_rating;
+                        this.satisfaction.notes = data.notes || '';
+                    }
+                    // 404 is expected if no satisfaction exists yet
+                } catch (err) {
+                    console.error('Failed to load satisfaction:', err);
                 }
             },
 
@@ -304,7 +338,7 @@
             },
 
             async approveSpell() {
-                if (!confirm('Approve and send this spell to the customer?')) return;
+                if (!confirm('Approve this spell? You can then send it to the customer.')) return;
 
                 this.approving = true;
                 const token = localStorage.getItem('token');
@@ -315,15 +349,45 @@
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
-                    if (!response.ok) throw new Error('Failed to approve');
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to approve');
+                    }
 
                     this.currentSpell = await response.json();
                     await this.loadOrder();
-                    alert('Spell approved and delivered!');
+                    alert('Spell approved! Click "Send Email" to deliver to the customer.');
                 } catch (err) {
                     alert('Failed to approve: ' + err.message);
                 } finally {
                     this.approving = false;
+                }
+            },
+
+            async deliverSpell() {
+                if (!confirm(`Send this spell via email to ${this.order.customer_email}?`)) return;
+
+                this.delivering = true;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/deliver`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to deliver');
+                    }
+
+                    this.currentSpell = await response.json();
+                    await this.loadOrder();
+                    alert('Spell delivered successfully! Email sent to customer.');
+                } catch (err) {
+                    alert('Failed to deliver: ' + err.message);
+                } finally {
+                    this.delivering = false;
                 }
             },
 

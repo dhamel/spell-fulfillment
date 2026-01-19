@@ -5,7 +5,9 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Spell Fulfillment application\n\nA FastAPI-based spell order management system with:\n- API endpoints for orders, spells, spell types, tasks, and metrics\n- Database models with Alembic migrations\n- Services for Etsy integration, Claude AI, and fulfillment\n- HTML templates for dashboard, orders, tasks, and settings\n- Docker and docker-compose configuration\n- Authentication and operator management\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(gh repo create:*)",
       "Bash(docker ps:*)",
-      "Bash(alembic upgrade:*)"
+      "Bash(alembic upgrade:*)",
+      "Bash(dir /s /b *.py)",
+      "Read(//c/**)"
     ]
   }
 }

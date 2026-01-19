@@ -90,6 +90,52 @@
             </div>
         </div>
     </div>
+
+    <!-- API Status -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">API Status</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <p class="text-sm text-gray-500">Etsy Connection</p>
+                <div class="mt-1 flex items-center">
+                    <div
+                        class="w-3 h-3 rounded-full mr-2"
+                        :class="dashboard.api_status?.etsy_connected ? 'bg-green-500' : 'bg-red-500'"
+                    ></div>
+                    <span class="font-medium" x-text="dashboard.api_status?.etsy_connected ? 'Connected' : 'Not Connected'"></span>
+                </div>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Etsy Requests Today</p>
+                <p class="mt-1 text-2xl font-bold text-gray-800" x-text="dashboard.api_status?.etsy_requests_today || 0"></p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Daily Limit Remaining</p>
+                <p class="mt-1 text-2xl font-bold text-gray-800" x-text="dashboard.api_status?.etsy_rate_limit_remaining || '-'"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Summary -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Task Summary</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                    <p class="text-sm text-gray-500">Pending Tasks</p>
+                    <p class="text-3xl font-bold text-gray-800" x-text="dashboard.tasks?.pending || 0"></p>
+                </div>
+                <a href="/tasks" class="text-blue-600 hover:text-blue-800 text-sm">View all</a>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                <div>
+                    <p class="text-sm text-gray-500">Overdue Tasks</p>
+                    <p class="text-3xl font-bold" :class="(dashboard.tasks?.overdue || 0) > 0 ? 'text-red-600' : 'text-gray-800'" x-text="dashboard.tasks?.overdue || 0"></p>
+                </div>
+                <a href="/tasks" class="text-blue-600 hover:text-blue-800 text-sm">View all</a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -98,6 +144,7 @@
             period: 'week',
             orderMetrics: { total: 0, by_status: {}, by_spell_type: {} },
             satisfaction: { average: 0, total: 0, distribution: {} },
+            dashboard: { orders: {}, tasks: {}, satisfaction: {}, api_status: {} },
 
             async init() {
                 await this.loadMetrics();
@@ -105,18 +152,36 @@
 
             async loadMetrics() {
                 const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
 
-                // Load order metrics
-                const orderRes = await fetch(`/api/v1/metrics/orders?period=${this.period}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                this.orderMetrics = await orderRes.json();
+                try {
+                    // Load all metrics in parallel
+                    const [orderRes, satRes, dashRes] = await Promise.all([
+                        fetch(`/api/v1/metrics/orders?period=${this.period}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        }),
+                        fetch('/api/v1/metrics/satisfaction', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        }),
+                        fetch('/api/v1/metrics/dashboard', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        })
+                    ]);
 
-                // Load satisfaction metrics
-                const satRes = await fetch('/api/v1/metrics/satisfaction', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                this.satisfaction = await satRes.json();
+                    if (orderRes.status === 401 || satRes.status === 401 || dashRes.status === 401) {
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    this.orderMetrics = await orderRes.json();
+                    this.satisfaction = await satRes.json();
+                    this.dashboard = await dashRes.json();
+                } catch (err) {
+                    console.error('Failed to load metrics:', err);
+                }
             },
 
             getDistributionPercent(star) {

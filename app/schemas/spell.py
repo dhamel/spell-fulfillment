@@ -70,3 +70,23 @@ class SpellRegenerateRequest(BaseModel):
     """Request to regenerate a spell (create new version)."""
 
     custom_prompt: Optional[str] = None
+
+
+class SatisfactionCreate(BaseModel):
+    """Create/update satisfaction rating."""
+
+    star_rating: int
+    notes: Optional[str] = None
+
+
+class SatisfactionDetail(BaseModel):
+    """Satisfaction rating detail."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    spell_id: int
+    star_rating: int
+    notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
