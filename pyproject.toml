@@ -1,0 +1,77 @@
+[project]
+name = "spell-fulfillment"
+version = "0.1.0"
+description = "Etsy spell fulfillment automation app"
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+
+    # Validation & Settings
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # HTTP Client
+    "httpx>=0.26.0",
+
+    # AI
+    "anthropic>=0.18.0",
+
+    # Authentication
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+
+    # Background Jobs
+    "apscheduler>=3.10.4",
+
+    # Email
+    "sendgrid>=6.11.0",
+
+    # Templates
+    "jinja2>=3.1.2",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "respx>=0.20.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true

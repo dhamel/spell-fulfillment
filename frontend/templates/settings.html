@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Spell Fulfillment{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="settingsPage()">
+    <h1 class="text-2xl font-bold text-gray-800">Settings</h1>
+
+    <!-- Etsy Connection -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Etsy Connection</h2>
+        <div x-show="!etsyConnected">
+            <p class="text-gray-600 mb-4">Connect your Etsy store to start syncing orders.</p>
+            <a
+                href="/api/v1/etsy/auth/url"
+                class="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+            >
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                </svg>
+                Connect Etsy Store
+            </a>
+        </div>
+        <div x-show="etsyConnected" x-cloak>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                    <span class="text-gray-700">Connected to Etsy</span>
+                </div>
+                <button
+                    @click="disconnectEtsy()"
+                    class="text-red-600 hover:text-red-800"
+                >Disconnect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spell Types -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">Spell Types</h2>
+            <button
+                @click="showCreateSpellType = true"
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >Add Spell Type</button>
+        </div>
+
+        <div class="space-y-4">
+            <template x-for="spellType in spellTypes" :key="spellType.id">
+                <div class="border rounded-lg p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-medium text-gray-900" x-text="spellType.name"></h3>
+                            <p class="text-sm text-gray-500" x-text="spellType.description || 'No description'"></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span
+                                x-show="spellType.has_stock_pdf"
+                                class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded"
+                            >PDF Uploaded</span>
+                            <span
+                                x-show="!spellType.has_stock_pdf"
+                                class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded"
+                            >No PDF</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex gap-2">
+                        <label class="px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                            <span x-text="spellType.has_stock_pdf ? 'Replace PDF' : 'Upload PDF'"></span>
+                            <input
+                                type="file"
+                                accept=".pdf"
+                                @change="uploadPDF($event, spellType.id)"
+                                class="hidden"
+                            >
+                        </label>
+                        <button
+                            @click="editSpellType(spellType)"
+                            class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                        >Edit Prompt</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <template x-if="spellTypes.length === 0">
+            <p class="text-gray-500 text-center py-8">No spell types configured yet.</p>
+        </template>
+    </div>
+
+    <!-- Edit Spell Type Modal -->
+    <div x-show="editingSpellType" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <h2 class="text-xl font-bold mb-4">Edit Spell Type</h2>
+            <form @submit.prevent="saveSpellType()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input type="text" x-model="editingSpellType.name" required class="w-full px-4 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" x-model="editingSpellType.description" class="w-full px-4 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prompt Template</label>
+                        <p class="text-xs text-gray-500 mb-2">Use {customer_name}, {intention}, and {spell_type} as placeholders.</p>
+                        <textarea x-model="editingSpellType.prompt_template" rows="10" class="w-full px-4 py-2 border border-gray-300 rounded-md font-mono text-sm"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" @click="editingSpellType = null" class="px-4 py-2 border border-gray-300 rounded-md">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function settingsPage() {
+        return {
+            etsyConnected: false,
+            spellTypes: [],
+            editingSpellType: null,
+            showCreateSpellType: false,
+
+            async init() {
+                await this.loadSpellTypes();
+                await this.checkEtsyConnection();
+            },
+
+            async checkEtsyConnection() {
+                const token = localStorage.getItem('token');
+                try {
+                    const response = await fetch('/api/v1/etsy/auth/status', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    this.etsyConnected = data.connected;
+                } catch (err) {
+                    this.etsyConnected = false;
+                }
+            },
+
+            async loadSpellTypes() {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/v1/spell-types', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                this.spellTypes = data.items;
+            },
+
+            editSpellType(spellType) {
+                this.editingSpellType = { ...spellType };
+            },
+
+            async saveSpellType() {
+                const token = localStorage.getItem('token');
+                await fetch(`/api/v1/spell-types/${this.editingSpellType.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: this.editingSpellType.name,
+                        description: this.editingSpellType.description,
+                        prompt_template: this.editingSpellType.prompt_template
+                    })
+                });
+                this.editingSpellType = null;
+                await this.loadSpellTypes();
+            },
+
+            async uploadPDF(event, spellTypeId) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const token = localStorage.getItem('token');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch(`/api/v1/spell-types/${spellTypeId}/pdf`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const data = await response.json();
+                        throw new Error(data.detail || 'Upload failed');
+                    }
+
+                    await this.loadSpellTypes();
+                    alert('PDF uploaded successfully!');
+                } catch (err) {
+                    alert('Failed to upload PDF: ' + err.message);
+                }
+            },
+
+            async disconnectEtsy() {
+                if (!confirm('Disconnect Etsy store?')) return;
+                const token = localStorage.getItem('token');
+                await fetch('/api/v1/etsy/auth/disconnect', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                this.etsyConnected = false;
+            }
+        }
+    }
+</script>
+{% endblock %}

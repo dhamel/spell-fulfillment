@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Order Detail - Spell Fulfillment{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="orderDetail({{ order_id }})">
+    <!-- Back button -->
+    <a href="/orders" class="inline-flex items-center text-gray-600 hover:text-gray-900">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+        Back to Orders
+    </a>
+
+    <template x-if="loading">
+        <div class="text-center py-12 text-gray-500">Loading order...</div>
+    </template>
+
+    <template x-if="!loading && order">
+        <div class="space-y-6">
+            <!-- Order Header -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">
+                            Order #<span x-text="order.etsy_receipt_id"></span>
+                        </h1>
+                        <p class="text-gray-500 mt-1">
+                            <span x-text="order.customer_name || 'Unknown Customer'"></span>
+                            <span x-show="order.customer_email" class="text-gray-400">
+                                (<span x-text="order.customer_email"></span>)
+                            </span>
+                        </p>
+                    </div>
+                    <span
+                        class="px-3 py-1 text-sm font-semibold rounded-full"
+                        :class="getStatusClass(order.status)"
+                        x-text="order.status"
+                    ></span>
+                </div>
+
+                <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500">Spell Type</span>
+                        <p class="font-medium" x-text="order.raw_spell_type || '-'"></p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Order Date</span>
+                        <p class="font-medium" x-text="formatDate(order.created_at)"></p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Total</span>
+                        <p class="font-medium" x-text="order.order_total_cents ? '$' + (order.order_total_cents / 100).toFixed(2) : '-'"></p>
+                    </div>
+                </div>
+
+                <div class="mt-4" x-show="order.intention">
+                    <span class="text-gray-500 text-sm">Customer Intention</span>
+                    <p class="mt-1 p-3 bg-gray-50 rounded-md text-gray-700" x-text="order.intention"></p>
+                </div>
+            </div>
+
+            <!-- Spell Content -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800">Generated Spell</h2>
+                    <div class="flex gap-2">
+                        <button
+                            x-show="currentSpell && !currentSpell.is_approved"
+                            @click="regenerateSpell()"
+                            :disabled="regenerating"
+                            class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            <span x-text="regenerating ? 'Regenerating...' : 'Regenerate'"></span>
+                        </button>
+                        <button
+                            x-show="currentSpell && !currentSpell.is_approved"
+                            @click="approveSpell()"
+                            :disabled="approving"
+                            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                        >
+                            <span x-text="approving ? 'Approving...' : 'Approve & Deliver'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <template x-if="!currentSpell">
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No spell generated yet.</p>
+                        <button
+                            @click="generateSpell()"
+                            :disabled="generating"
+                            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            <span x-text="generating ? 'Generating...' : 'Generate Spell'"></span>
+                        </button>
+                    </div>
+                </template>
+
+                <template x-if="currentSpell">
+                    <div>
+                        <div class="flex items-center gap-2 mb-3 text-sm text-gray-500">
+                            <span>Version <span x-text="currentSpell.version"></span></span>
+                            <span x-show="currentSpell.is_approved" class="text-green-600">Approved</span>
+                            <span x-show="currentSpell.delivered_at" class="text-gray-600">Delivered</span>
+                        </div>
+
+                        <!-- Editable spell content -->
+                        <div x-show="!editing" class="prose max-w-none">
+                            <div class="p-4 bg-gray-50 rounded-md whitespace-pre-wrap" x-text="currentSpell.content"></div>
+                            <button
+                                x-show="!currentSpell.is_approved"
+                                @click="editing = true"
+                                class="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                            >Edit</button>
+                        </div>
+
+                        <div x-show="editing" x-cloak>
+                            <textarea
+                                x-model="editedContent"
+                                rows="15"
+                                class="w-full p-4 border border-gray-300 rounded-md font-mono text-sm"
+                            ></textarea>
+                            <div class="mt-2 flex gap-2">
+                                <button
+                                    @click="saveEdit()"
+                                    :disabled="saving"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    <span x-text="saving ? 'Saving...' : 'Save'"></span>
+                                </button>
+                                <button
+                                    @click="editing = false; editedContent = currentSpell.content"
+                                    class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                                >Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Satisfaction Rating -->
+            <div x-show="currentSpell && currentSpell.delivered_at" class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Customer Satisfaction</h2>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-1">
+                        <template x-for="star in [1, 2, 3, 4, 5]">
+                            <button
+                                @click="setRating(star)"
+                                class="text-2xl"
+                                :class="star <= satisfaction.rating ? 'text-yellow-400' : 'text-gray-300'"
+                            >★</button>
+                        </template>
+                    </div>
+                    <input
+                        type="text"
+                        x-model="satisfaction.notes"
+                        placeholder="Add notes..."
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-md"
+                    >
+                    <button
+                        @click="saveSatisfaction()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >Save</button>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+    function orderDetail(orderId) {
+        return {
+            orderId: orderId,
+            order: null,
+            currentSpell: null,
+            loading: true,
+            editing: false,
+            editedContent: '',
+            saving: false,
+            generating: false,
+            regenerating: false,
+            approving: false,
+            satisfaction: { rating: 0, notes: '' },
+
+            async init() {
+                await this.loadOrder();
+            },
+
+            async loadOrder() {
+                this.loading = true;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/orders/${this.orderId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    this.order = await response.json();
+
+                    // Load current spell if exists
+                    // For now, we'll need to fetch spells separately
+                    // This would be enhanced with proper API
+                } catch (err) {
+                    console.error('Failed to load order:', err);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async generateSpell() {
+                this.generating = true;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/orders/${this.orderId}/spells/regenerate`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) throw new Error('Failed to generate spell');
+
+                    this.currentSpell = await response.json();
+                    this.editedContent = this.currentSpell.content;
+                    await this.loadOrder();
+                } catch (err) {
+                    alert('Failed to generate spell: ' + err.message);
+                } finally {
+                    this.generating = false;
+                }
+            },
+
+            async regenerateSpell() {
+                this.regenerating = true;
+                await this.generateSpell();
+                this.regenerating = false;
+            },
+
+            async saveEdit() {
+                this.saving = true;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ content: this.editedContent })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to save');
+
+                    this.currentSpell = await response.json();
+                    this.editing = false;
+                } catch (err) {
+                    alert('Failed to save: ' + err.message);
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            async approveSpell() {
+                if (!confirm('Approve and send this spell to the customer?')) return;
+
+                this.approving = true;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/approve`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) throw new Error('Failed to approve');
+
+                    this.currentSpell = await response.json();
+                    await this.loadOrder();
+                    alert('Spell approved and delivered!');
+                } catch (err) {
+                    alert('Failed to approve: ' + err.message);
+                } finally {
+                    this.approving = false;
+                }
+            },
+
+            setRating(star) {
+                this.satisfaction.rating = star;
+            },
+
+            async saveSatisfaction() {
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/satisfaction`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            star_rating: this.satisfaction.rating,
+                            notes: this.satisfaction.notes
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to save');
+                    alert('Satisfaction rating saved!');
+                } catch (err) {
+                    alert('Failed to save: ' + err.message);
+                }
+            },
+
+            getStatusClass(status) {
+                const classes = {
+                    pending: 'bg-yellow-100 text-yellow-800',
+                    generating: 'bg-blue-100 text-blue-800',
+                    review: 'bg-purple-100 text-purple-800',
+                    approved: 'bg-green-100 text-green-800',
+                    delivered: 'bg-gray-100 text-gray-800',
+                    failed: 'bg-red-100 text-red-800'
+                };
+                return classes[status] || 'bg-gray-100 text-gray-800';
+            },
+
+            formatDate(dateStr) {
+                return new Date(dateStr).toLocaleDateString();
+            }
+        }
+    }
+</script>
+{% endblock %}

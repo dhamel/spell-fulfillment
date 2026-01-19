@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Metrics - Spell Fulfillment{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="metricsPage()">
+    <h1 class="text-2xl font-bold text-gray-800">Metrics & Analytics</h1>
+
+    <!-- Period Selector -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex gap-2">
+            <button
+                @click="period = 'day'; loadMetrics()"
+                :class="period === 'day' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-md"
+            >Today</button>
+            <button
+                @click="period = 'week'; loadMetrics()"
+                :class="period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-md"
+            >This Week</button>
+            <button
+                @click="period = 'month'; loadMetrics()"
+                :class="period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-md"
+            >This Month</button>
+            <button
+                @click="period = 'year'; loadMetrics()"
+                :class="period === 'year' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                class="px-4 py-2 rounded-md"
+            >This Year</button>
+        </div>
+    </div>
+
+    <!-- Order Metrics -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Order Metrics</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="text-center">
+                <p class="text-3xl font-bold text-blue-600" x-text="orderMetrics.total"></p>
+                <p class="text-sm text-gray-500">Total Orders</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-bold text-yellow-600" x-text="orderMetrics.by_status?.pending || 0"></p>
+                <p class="text-sm text-gray-500">Pending</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-bold text-purple-600" x-text="orderMetrics.by_status?.review || 0"></p>
+                <p class="text-sm text-gray-500">In Review</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-bold text-green-600" x-text="orderMetrics.by_status?.delivered || 0"></p>
+                <p class="text-sm text-gray-500">Delivered</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Satisfaction Metrics -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Customer Satisfaction</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="text-center py-8">
+                <p class="text-5xl font-bold text-yellow-500" x-text="satisfaction.average.toFixed(1)"></p>
+                <div class="flex justify-center mt-2">
+                    <template x-for="star in [1, 2, 3, 4, 5]">
+                        <span
+                            class="text-2xl"
+                            :class="star <= Math.round(satisfaction.average) ? 'text-yellow-400' : 'text-gray-300'"
+                        >★</span>
+                    </template>
+                </div>
+                <p class="text-sm text-gray-500 mt-2">Average Rating (<span x-text="satisfaction.total"></span> reviews)</p>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-700 mb-3">Rating Distribution</h3>
+                <div class="space-y-2">
+                    <template x-for="star in [5, 4, 3, 2, 1]">
+                        <div class="flex items-center">
+                            <span class="w-8 text-sm text-gray-600" x-text="star + '★'"></span>
+                            <div class="flex-1 mx-2 h-4 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    class="h-full bg-yellow-400"
+                                    :style="`width: ${getDistributionPercent(star)}%`"
+                                ></div>
+                            </div>
+                            <span class="w-10 text-sm text-gray-500 text-right" x-text="satisfaction.distribution[star] || 0"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function metricsPage() {
+        return {
+            period: 'week',
+            orderMetrics: { total: 0, by_status: {}, by_spell_type: {} },
+            satisfaction: { average: 0, total: 0, distribution: {} },
+
+            async init() {
+                await this.loadMetrics();
+            },
+
+            async loadMetrics() {
+                const token = localStorage.getItem('token');
+
+                // Load order metrics
+                const orderRes = await fetch(`/api/v1/metrics/orders?period=${this.period}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                this.orderMetrics = await orderRes.json();
+
+                // Load satisfaction metrics
+                const satRes = await fetch('/api/v1/metrics/satisfaction', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                this.satisfaction = await satRes.json();
+            },
+
+            getDistributionPercent(star) {
+                if (this.satisfaction.total === 0) return 0;
+                const count = this.satisfaction.distribution[star] || 0;
+                return (count / this.satisfaction.total) * 100;
+            }
+        }
+    }
+</script>
+{% endblock %}
