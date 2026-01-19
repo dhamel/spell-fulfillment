@@ -42,3 +42,31 @@ class SpellList(BaseModel):
     """List of spells (for order detail)."""
 
     items: list[SpellSummary]
+
+
+class SpellGenerateRequest(BaseModel):
+    """Request to generate a spell for an order."""
+
+    custom_prompt: Optional[str] = None
+
+
+class SpellGenerateResponse(BaseModel):
+    """Response from spell generation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    order_id: int
+    version: int
+    content: str
+    prompt_used: Optional[str]
+    model_used: Optional[str]
+    is_current: bool
+    created_at: datetime
+    message: str = "Spell generated successfully"
+
+
+class SpellRegenerateRequest(BaseModel):
+    """Request to regenerate a spell (create new version)."""
+
+    custom_prompt: Optional[str] = None

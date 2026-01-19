@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.order import Order, OrderStatus
 from app.schemas.order import OrderList, OrderDetail, OrderUpdate
+from app.schemas.spell import SpellGenerateRequest, SpellGenerateResponse
 
 router = APIRouter()
 
@@ -110,6 +111,45 @@ async def update_order(
     await db.refresh(order)
 
     return OrderDetail.model_validate(order, from_attributes=True)
+
+
+@router.post("/{order_id}/spells/generate", response_model=SpellGenerateResponse)
+async def generate_spell_for_order(
+    order_id: int,
+    request: SpellGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+) -> SpellGenerateResponse:
+    """Generate a spell for an order using Claude AI.
+
+    Creates a new spell version for the specified order.
+    If the order already has spells, the new one becomes the current version.
+    """
+    from app.services.claude import generate_spell_for_order, SpellGenerationError
+
+    try:
+        spell = await generate_spell_for_order(db, order_id, request.custom_prompt)
+        return SpellGenerateResponse(
+            id=spell.id,
+            order_id=spell.order_id,
+            version=spell.version,
+            content=spell.content,
+            prompt_used=spell.prompt_used,
+            model_used=spell.model_used,
+            is_current=spell.is_current,
+            created_at=spell.created_at,
+            message=f"Spell generated successfully (version {spell.version})",
+        )
+    except SpellGenerationError as e:
+        if "not found" in e.message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=e.message,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
 
 
 @router.post("/sync")

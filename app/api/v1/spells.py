@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_user
 from app.models.spell import Spell
 from app.models.order import Order, OrderStatus
-from app.schemas.spell import SpellDetail, SpellUpdate, SpellList
+from app.schemas.spell import (
+    SpellDetail,
+    SpellUpdate,
+    SpellList,
+    SpellGenerateRequest,
+    SpellGenerateResponse,
+    SpellRegenerateRequest,
+)
 
 router = APIRouter()
 
@@ -149,3 +156,46 @@ async def deliver_spell(
     await db.refresh(spell)
 
     return SpellDetail.model_validate(spell, from_attributes=True)
+
+
+@router.post("/{spell_id}/regenerate", response_model=SpellGenerateResponse)
+async def regenerate_spell_endpoint(
+    spell_id: int,
+    request: SpellRegenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+) -> SpellGenerateResponse:
+    """Regenerate a spell (create new version).
+
+    Creates a new version of the spell using Claude AI.
+    The new version becomes the current spell for the order.
+    """
+    from app.services.claude import regenerate_spell, SpellGenerationError
+
+    result = await db.execute(select(Spell).where(Spell.id == spell_id))
+    spell = result.scalar_one_or_none()
+
+    if not spell:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Spell not found",
+        )
+
+    try:
+        new_spell = await regenerate_spell(db, spell_id, request.custom_prompt)
+        return SpellGenerateResponse(
+            id=new_spell.id,
+            order_id=new_spell.order_id,
+            version=new_spell.version,
+            content=new_spell.content,
+            prompt_used=new_spell.prompt_used,
+            model_used=new_spell.model_used,
+            is_current=new_spell.is_current,
+            created_at=new_spell.created_at,
+            message=f"Spell regenerated successfully (version {new_spell.version})",
+        )
+    except SpellGenerationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=e.message,
+        )
