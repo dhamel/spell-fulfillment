@@ -84,12 +84,44 @@ async def get_order(
     )
     current_spell = spell_result.scalar_one_or_none()
 
-    # Build response with spell
-    order_data = OrderDetail.model_validate(order, from_attributes=True)
+    # Build response manually to avoid lazy loading issues
+    spell_detail = None
     if current_spell:
-        order_data.current_spell = SpellDetail.model_validate(current_spell, from_attributes=True)
+        spell_detail = SpellDetail(
+            id=current_spell.id,
+            order_id=current_spell.order_id,
+            version=current_spell.version,
+            is_current=current_spell.is_current,
+            is_approved=current_spell.is_approved,
+            created_at=current_spell.created_at,
+            content=current_spell.content,
+            content_html=current_spell.content_html,
+            prompt_used=current_spell.prompt_used,
+            model_used=current_spell.model_used,
+            approved_at=current_spell.approved_at,
+            delivered_at=current_spell.delivered_at,
+            delivery_method=current_spell.delivery_method,
+        )
 
-    return order_data
+    return OrderDetail(
+        id=order.id,
+        etsy_receipt_id=order.etsy_receipt_id,
+        customer_name=order.customer_name,
+        raw_spell_type=order.raw_spell_type,
+        status=order.status,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        customer_email=order.customer_email,
+        etsy_listing_id=order.etsy_listing_id,
+        etsy_transaction_id=order.etsy_transaction_id,
+        spell_type_id=order.spell_type_id,
+        intention=order.intention,
+        personalization_data=order.personalization_data,
+        etsy_order_date=order.etsy_order_date,
+        order_total_cents=order.order_total_cents,
+        currency_code=order.currency_code,
+        current_spell=spell_detail,
+    )
 
 
 @router.patch("/{order_id}", response_model=OrderDetail)
