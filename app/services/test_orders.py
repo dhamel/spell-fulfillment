@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.order import Order, OrderStatus
+from app.models.order import CastType, Order, OrderStatus
 from app.models.spell_type import SpellType
 
 
@@ -87,6 +87,7 @@ async def create_test_order(
     personalization_data: Optional[dict] = None,
     order_total_cents: int = 2999,
     currency_code: str = "USD",
+    cast_type: CastType = CastType.CUSTOMER_CAST,
 ) -> Order:
     """Create a single test order.
 
@@ -99,6 +100,7 @@ async def create_test_order(
         personalization_data: Additional personalization fields
         order_total_cents: Order total in cents
         currency_code: Currency code
+        cast_type: How the spell should be fulfilled
 
     Returns:
         Created Order object
@@ -130,6 +132,7 @@ async def create_test_order(
         currency_code=currency_code,
         status=OrderStatus.PENDING,
         is_test_order=True,  # Mark as test order for filtering
+        cast_type=cast_type,
     )
 
     db.add(order)

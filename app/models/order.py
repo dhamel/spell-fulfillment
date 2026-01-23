@@ -26,6 +26,14 @@ class OrderStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class CastType(str, enum.Enum):
+    """Cast type enumeration - determines how the spell is fulfilled."""
+
+    CAST_BY_US = "cast_by_us"        # Boilerplate email, spell cast on customer's behalf
+    CUSTOMER_CAST = "customer_cast"  # AI-generated instructions for customer to cast
+    COMBINATION = "combination"       # Both: cast-by-us confirmation + customer instructions
+
+
 class Order(Base, TimestampMixin):
     """Etsy order with spell request details."""
 
@@ -66,6 +74,13 @@ class Order(Base, TimestampMixin):
 
     # Test order flag - distinguishes test orders from real production orders
     is_test_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Cast type - how the spell should be fulfilled
+    cast_type: Mapped[CastType] = mapped_column(
+        Enum(CastType, values_callable=lambda x: [e.value for e in x]),
+        default=CastType.CUSTOMER_CAST,
+        nullable=False,
+    )
 
     # Relationships
     spell_type: Mapped[Optional["SpellType"]] = relationship(

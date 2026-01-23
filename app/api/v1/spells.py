@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_current_user
 from app.models.spell import Spell
-from app.models.order import Order, OrderStatus
+from app.models.order import CastType, Order, OrderStatus
 from app.models.satisfaction import Satisfaction
 from app.schemas.spell import (
     SpellDetail,
@@ -17,6 +17,7 @@ from app.schemas.spell import (
     SpellRegenerateRequest,
     SatisfactionCreate,
     SatisfactionDetail,
+    EmailPreview,
 )
 
 router = APIRouter()
@@ -124,9 +125,20 @@ async def deliver_spell(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ) -> SpellDetail:
-    """Manually trigger spell delivery via email."""
+    """Manually trigger spell delivery via email.
+
+    The email content varies based on the order's cast_type:
+    - CAST_BY_US: Boilerplate confirmation that spell was cast on their behalf
+    - CUSTOMER_CAST: AI-generated spell instructions for customer
+    - COMBINATION: Both cast confirmation + customer instructions
+    """
     from datetime import datetime, timezone
-    from app.services.fulfillment import send_spell_email, EmailDeliveryError
+    from app.services.fulfillment import (
+        send_spell_email,
+        send_cast_by_us_email,
+        send_combination_email,
+        EmailDeliveryError,
+    )
 
     result = await db.execute(select(Spell).where(Spell.id == spell_id))
     spell = result.scalar_one_or_none()
@@ -165,14 +177,37 @@ async def deliver_spell(
             detail="Customer email not available for this order",
         )
 
-    # Send the email
+    # Send the appropriate email based on cast_type
+    customer_name = order.customer_name or "Valued Customer"
+    spell_type = order.raw_spell_type or "Personalized"
+    intention = order.intention or ""
+
     try:
-        email_result = await send_spell_email(
-            to_email=order.customer_email,
-            customer_name=order.customer_name or "Valued Customer",
-            spell_content=spell.content,
-            spell_type=order.raw_spell_type or "Personalized",
-        )
+        if order.cast_type == CastType.CAST_BY_US:
+            # Send cast-by-us confirmation email
+            email_result = await send_cast_by_us_email(
+                to_email=order.customer_email,
+                customer_name=customer_name,
+                spell_type=spell_type,
+                intention=intention,
+            )
+        elif order.cast_type == CastType.COMBINATION:
+            # Send combination email (cast confirmation + instructions)
+            email_result = await send_combination_email(
+                to_email=order.customer_email,
+                customer_name=customer_name,
+                spell_type=spell_type,
+                intention=intention,
+                spell_instructions=spell.content,
+            )
+        else:
+            # Default: CUSTOMER_CAST - send AI-generated instructions
+            email_result = await send_spell_email(
+                to_email=order.customer_email,
+                customer_name=customer_name,
+                spell_content=spell.content,
+                spell_type=spell_type,
+            )
 
         if not email_result.success:
             raise HTTPException(
@@ -198,6 +233,61 @@ async def deliver_spell(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Email service error: {e.message}",
         )
+
+
+@router.get("/{spell_id}/email-preview", response_model=EmailPreview)
+async def get_spell_email_preview(
+    spell_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+) -> EmailPreview:
+    """Get a preview of the email that was/will be sent for this spell.
+
+    This endpoint reconstructs the email content based on the order's cast_type.
+    Useful for viewing what the customer received after delivery.
+    """
+    from app.services.fulfillment import get_email_preview
+
+    result = await db.execute(select(Spell).where(Spell.id == spell_id))
+    spell = result.scalar_one_or_none()
+
+    if not spell:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Spell not found",
+        )
+
+    # Get the associated order for customer details
+    order_result = await db.execute(select(Order).where(Order.id == spell.order_id))
+    order = order_result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Associated order not found",
+        )
+
+    # Generate the email preview
+    customer_name = order.customer_name or "Valued Customer"
+    spell_type = order.raw_spell_type or "Personalized"
+    intention = order.intention or ""
+    cast_type = order.cast_type.value if order.cast_type else "customer_cast"
+
+    preview = get_email_preview(
+        cast_type=cast_type,
+        customer_name=customer_name,
+        spell_type=spell_type,
+        intention=intention,
+        spell_content=spell.content,
+    )
+
+    return EmailPreview(
+        subject=preview.subject,
+        html_content=preview.html_content,
+        plain_content=preview.plain_content,
+        sent_to=order.customer_email or "",
+        sent_at=spell.delivered_at,
+    )
 
 
 @router.post("/{spell_id}/regenerate", response_model=SpellGenerateResponse)

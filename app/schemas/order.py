@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.order import OrderStatus
+from app.models.order import CastType, OrderStatus
 from app.schemas.spell import SpellDetail
 
 
@@ -33,6 +33,7 @@ class OrderSummary(BaseModel):
     customer_name: Optional[str]
     raw_spell_type: Optional[str]
     status: OrderStatus
+    cast_type: CastType = CastType.CUSTOMER_CAST
     created_at: datetime
     updated_at: datetime
     is_test_order: bool = False
@@ -98,6 +99,11 @@ class ManualOrderCreate(BaseModel):
         description="When the order was received from Etsy (copy from Etsy receipt)",
     )
 
+    cast_type: CastType = Field(
+        default=CastType.CUSTOMER_CAST,
+        description="How the spell should be fulfilled: cast_by_us, customer_cast, or combination",
+    )
+
 
 class ManualOrderResponse(BaseModel):
     """Response schema for created manual order."""
@@ -113,4 +119,5 @@ class ManualOrderResponse(BaseModel):
     etsy_order_date: datetime
     created_at: datetime
     is_test_order: bool
+    cast_type: str
     message: str

@@ -46,6 +46,16 @@
                         <p class="font-medium" x-text="order.raw_spell_type || '-'"></p>
                     </div>
                     <div>
+                        <span class="text-gray-500">Cast Type</span>
+                        <p class="font-medium">
+                            <span
+                                class="px-2 py-1 text-xs font-medium rounded"
+                                :class="getCastTypeClass(order.cast_type)"
+                                x-text="formatCastType(order.cast_type)"
+                            ></span>
+                        </p>
+                    </div>
+                    <div>
                         <span class="text-gray-500">Order Date</span>
                         <p class="font-medium" x-text="formatDate(order.created_at)"></p>
                     </div>
@@ -95,13 +105,22 @@
 
                 <template x-if="!currentSpell">
                     <div class="text-center py-8 text-gray-500">
-                        <p>No spell generated yet.</p>
+                        <template x-if="order.cast_type === 'cast_by_us'">
+                            <div>
+                                <p class="text-purple-600 font-medium">Cast by Us</p>
+                                <p class="text-sm mt-1">This order uses pre-written confirmation content.</p>
+                                <p class="text-sm mt-1">Click below to prepare the spell for delivery.</p>
+                            </div>
+                        </template>
+                        <template x-if="order.cast_type !== 'cast_by_us'">
+                            <p>No spell generated yet.</p>
+                        </template>
                         <button
                             @click="generateSpell()"
                             :disabled="generating"
                             class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                         >
-                            <span x-text="generating ? 'Generating...' : 'Generate Spell'"></span>
+                            <span x-text="generating ? (order.cast_type === 'cast_by_us' ? 'Preparing...' : 'Generating...') : (order.cast_type === 'cast_by_us' ? 'Prepare for Delivery' : 'Generate Spell')"></span>
                         </button>
                     </div>
                 </template>
@@ -146,6 +165,78 @@
                         </div>
                     </div>
                 </template>
+            </div>
+
+            <!-- Email Preview (only shown when delivered) -->
+            <div x-show="currentSpell && currentSpell.delivered_at" class="bg-white rounded-lg shadow">
+                <button
+                    @click="toggleEmailPreview()"
+                    class="w-full p-6 flex justify-between items-center hover:bg-gray-50 transition-colors rounded-lg"
+                >
+                    <h2 class="text-lg font-semibold text-gray-800">Sent Email Preview</h2>
+                    <div class="flex items-center gap-2">
+                        <span x-show="emailPreview.loading" class="text-sm text-gray-500">Loading...</span>
+                        <svg
+                            class="w-5 h-5 text-gray-500 transition-transform"
+                            :class="{ 'rotate-180': emailPreview.expanded }"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
+                </button>
+
+                <div x-show="emailPreview.expanded" x-cloak class="border-t border-gray-200">
+                    <div class="p-6">
+                        <template x-if="emailPreview.data">
+                            <div class="space-y-4">
+                                <!-- Email metadata -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span class="text-gray-500">Subject:</span>
+                                        <p class="font-medium text-gray-800" x-text="emailPreview.data.subject"></p>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-500">Sent to:</span>
+                                        <p class="font-medium text-gray-800" x-text="emailPreview.data.sent_to"></p>
+                                    </div>
+                                </div>
+
+                                <!-- View toggle -->
+                                <div class="flex gap-2 border-b border-gray-200 pb-2">
+                                    <button
+                                        @click="emailPreview.viewMode = 'html'"
+                                        :class="emailPreview.viewMode === 'html' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'"
+                                        class="px-3 py-1 text-sm font-medium"
+                                    >HTML Preview</button>
+                                    <button
+                                        @click="emailPreview.viewMode = 'plain'"
+                                        :class="emailPreview.viewMode === 'plain' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'"
+                                        class="px-3 py-1 text-sm font-medium"
+                                    >Plain Text</button>
+                                </div>
+
+                                <!-- HTML preview (iframe) -->
+                                <div x-show="emailPreview.viewMode === 'html'" class="border border-gray-200 rounded-md">
+                                    <iframe
+                                        :srcdoc="emailPreview.data.html_content"
+                                        class="w-full h-96 md:h-[600px]"
+                                        sandbox="allow-same-origin"
+                                    ></iframe>
+                                </div>
+
+                                <!-- Plain text preview -->
+                                <div x-show="emailPreview.viewMode === 'plain'" class="border border-gray-200 rounded-md p-4 bg-gray-50 max-h-[600px] overflow-y-auto">
+                                    <pre class="whitespace-pre-wrap text-sm text-gray-700 font-mono" x-text="emailPreview.data.plain_content"></pre>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="emailPreview.error">
+                            <div class="text-red-600 text-sm" x-text="emailPreview.error"></div>
+                        </template>
+                    </div>
+                </div>
             </div>
 
             <!-- Satisfaction Rating -->
@@ -229,6 +320,7 @@
             approving: false,
             delivering: false,
             satisfaction: { rating: 0, notes: '', saved: false, editing: false, originalRating: 0, originalNotes: '' },
+            emailPreview: { expanded: false, loading: false, data: null, error: null, viewMode: 'html' },
 
             async init() {
                 await this.loadOrder();
@@ -475,6 +567,41 @@
                 this.satisfaction.editing = false;
             },
 
+            async toggleEmailPreview() {
+                this.emailPreview.expanded = !this.emailPreview.expanded;
+
+                // Load email preview when expanded and not already loaded
+                if (this.emailPreview.expanded && !this.emailPreview.data && !this.emailPreview.loading) {
+                    await this.loadEmailPreview();
+                }
+            },
+
+            async loadEmailPreview() {
+                if (!this.currentSpell) return;
+
+                this.emailPreview.loading = true;
+                this.emailPreview.error = null;
+                const token = localStorage.getItem('token');
+
+                try {
+                    const response = await fetch(`/api/v1/spells/${this.currentSpell.id}/email-preview`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to load email preview');
+                    }
+
+                    this.emailPreview.data = await response.json();
+                } catch (err) {
+                    console.error('Failed to load email preview:', err);
+                    this.emailPreview.error = err.message;
+                } finally {
+                    this.emailPreview.loading = false;
+                }
+            },
+
             getStatusClass(status) {
                 const classes = {
                     pending: 'bg-yellow-100 text-yellow-800',
@@ -489,6 +616,24 @@
 
             formatDate(dateStr) {
                 return new Date(dateStr).toLocaleDateString();
+            },
+
+            formatCastType(castType) {
+                const labels = {
+                    cast_by_us: 'Cast by Us',
+                    customer_cast: 'Customer Cast',
+                    combination: 'Combination'
+                };
+                return labels[castType] || castType || 'Customer Cast';
+            },
+
+            getCastTypeClass(castType) {
+                const classes = {
+                    cast_by_us: 'bg-purple-100 text-purple-800',
+                    customer_cast: 'bg-blue-100 text-blue-800',
+                    combination: 'bg-indigo-100 text-indigo-800'
+                };
+                return classes[castType] || 'bg-gray-100 text-gray-800';
             }
         }
     }

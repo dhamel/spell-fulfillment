@@ -84,6 +84,7 @@ async def create_test_order_endpoint(
         personalization_data=order_data.personalization_data,
         order_total_cents=order_data.order_total_cents,
         currency_code=order_data.currency_code,
+        cast_type=order_data.cast_type,
     )
 
     return TestOrderResponse(
@@ -94,6 +95,7 @@ async def create_test_order_endpoint(
         raw_spell_type=order.raw_spell_type,
         intention=order.intention,
         status=order.status.value,
+        cast_type=order.cast_type.value,
         message=f"Test order created successfully with ID {order.id}",
     )
 
@@ -129,6 +131,7 @@ async def create_bulk_test_orders_endpoint(
             raw_spell_type=order.raw_spell_type,
             intention=order.intention,
             status=order.status.value,
+            cast_type=order.cast_type.value,
             message=f"Test order {i + 1} of {len(orders)} created",
         )
         for i, order in enumerate(orders)

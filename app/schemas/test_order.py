@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.models.order import CastType
+
 
 class TestOrderCreate(BaseModel):
     """Request schema for creating a test order."""
@@ -30,6 +32,11 @@ class TestOrderCreate(BaseModel):
     order_total_cents: int = Field(default=2999, ge=0)
     currency_code: str = Field(default="USD", max_length=10)
 
+    cast_type: CastType = Field(
+        default=CastType.CUSTOMER_CAST,
+        description="How the spell should be fulfilled: cast_by_us, customer_cast, or combination",
+    )
+
 
 class TestOrderBulkCreate(BaseModel):
     """Request schema for creating multiple test orders."""
@@ -51,4 +58,5 @@ class TestOrderResponse(BaseModel):
     raw_spell_type: str
     intention: str
     status: str
+    cast_type: str
     message: str

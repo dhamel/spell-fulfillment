@@ -118,6 +118,7 @@ async def get_order(
         customer_name=order.customer_name,
         raw_spell_type=order.raw_spell_type,
         status=order.status,
+        cast_type=order.cast_type,
         created_at=order.created_at,
         updated_at=order.updated_at,
         is_test_order=order.is_test_order,
@@ -296,6 +297,7 @@ async def create_manual_order(
         currency_code=order_data.currency_code,
         status=OrderStatus.PENDING,
         is_test_order=False,  # This is a real production order
+        cast_type=order_data.cast_type,
     )
 
     db.add(order)
@@ -314,5 +316,6 @@ async def create_manual_order(
         etsy_order_date=order.etsy_order_date,
         created_at=order.created_at,
         is_test_order=order.is_test_order,
+        cast_type=order.cast_type.value,
         message="Manual order created successfully. Ready for spell generation.",
     )

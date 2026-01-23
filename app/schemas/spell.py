@@ -90,3 +90,13 @@ class SatisfactionDetail(BaseModel):
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+
+class EmailPreview(BaseModel):
+    """Email preview for delivered spells."""
+
+    subject: str
+    html_content: str
+    plain_content: str
+    sent_to: str
+    sent_at: Optional[datetime] = None

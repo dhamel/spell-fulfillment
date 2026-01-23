@@ -10,14 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
-from app.models.order import Order, OrderStatus
+from app.models.order import CastType, Order, OrderStatus
 from app.models.spell import Spell
 from app.models.spell_type import SpellType
 from app.services.claude.client import get_claude_client, ClaudeAPIError
 from app.services.claude.prompts import (
     SYSTEM_PROMPT,
+    SYSTEM_PROMPT_CUSTOMER_CAST,
     DEFAULT_PROMPT_TEMPLATE,
     get_template_for_spell_type,
+    get_customer_cast_template,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,25 +46,55 @@ class SpellGenerator:
         """
         self.db = db
 
-    def _get_prompt_template(self, spell_type: Optional[SpellType]) -> str:
+    def _get_prompt_template(
+        self,
+        spell_type: Optional[SpellType],
+        cast_type: CastType = CastType.CUSTOMER_CAST,
+    ) -> str:
         """Get the appropriate prompt template.
 
         Args:
             spell_type: The SpellType model (may be None)
+            cast_type: The cast type (CUSTOMER_CAST or COMBINATION use shorter prompts)
 
         Returns:
             Prompt template string
         """
-        # Use spell_type's custom template if available
+        # For CUSTOMER_CAST and COMBINATION, use the shorter templates
+        if cast_type in (CastType.CUSTOMER_CAST, CastType.COMBINATION):
+            # Use spell_type's custom template if available
+            if spell_type and spell_type.prompt_template:
+                return spell_type.prompt_template
+
+            # Fall back to customer-cast templates (shorter, more professional)
+            if spell_type and spell_type.slug:
+                return get_customer_cast_template(spell_type.slug)
+
+            from app.services.claude.prompts import CUSTOMER_CAST_DEFAULT_TEMPLATE
+            return CUSTOMER_CAST_DEFAULT_TEMPLATE
+
+        # For original behavior (or future extensions), use original templates
         if spell_type and spell_type.prompt_template:
             return spell_type.prompt_template
 
-        # Fall back to built-in template based on slug
         if spell_type and spell_type.slug:
             return get_template_for_spell_type(spell_type.slug)
 
-        # Ultimate fallback
         return DEFAULT_PROMPT_TEMPLATE
+
+    def _get_system_prompt(self, cast_type: CastType) -> str:
+        """Get the appropriate system prompt based on cast type.
+
+        Args:
+            cast_type: The cast type
+
+        Returns:
+            System prompt string
+        """
+        # CUSTOMER_CAST and COMBINATION use the shorter, more professional system prompt
+        if cast_type in (CastType.CUSTOMER_CAST, CastType.COMBINATION):
+            return SYSTEM_PROMPT_CUSTOMER_CAST
+        return SYSTEM_PROMPT
 
     def _render_prompt(
         self,
@@ -133,6 +165,9 @@ class SpellGenerator:
     ) -> Spell:
         """Generate a spell for an order.
 
+        For CAST_BY_US orders, creates a placeholder spell record (no AI generation).
+        For CUSTOMER_CAST and COMBINATION orders, uses Claude AI with shorter prompts.
+
         Args:
             order: The Order to generate a spell for
             custom_prompt: Optional custom prompt override
@@ -143,7 +178,8 @@ class SpellGenerator:
         Raises:
             SpellGenerationError: If generation fails
         """
-        logger.info(f"Generating spell for order {order.id}")
+        cast_type = order.cast_type
+        logger.info(f"Generating spell for order {order.id} (cast_type={cast_type.value})")
 
         # Load spell_type if not already loaded
         spell_type = None
@@ -153,12 +189,20 @@ class SpellGenerator:
             )
             spell_type = result.scalar_one_or_none()
 
+        # Handle CAST_BY_US - no AI generation needed
+        if cast_type == CastType.CAST_BY_US:
+            return await self._create_cast_by_us_spell(order, spell_type)
+
+        # For CUSTOMER_CAST and COMBINATION, generate AI content
         # Get and render prompt
         if custom_prompt:
             rendered_prompt = custom_prompt
         else:
-            template = self._get_prompt_template(spell_type)
+            template = self._get_prompt_template(spell_type, cast_type)
             rendered_prompt = self._render_prompt(template, order, spell_type)
+
+        # Get the appropriate system prompt
+        system_prompt = self._get_system_prompt(cast_type)
 
         # Update order status to GENERATING
         order.status = OrderStatus.GENERATING
@@ -169,7 +213,7 @@ class SpellGenerator:
             client = get_claude_client()
             content = await client.generate_text(
                 prompt=rendered_prompt,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=system_prompt,
             )
 
             # Get next version number
@@ -216,6 +260,68 @@ class SpellGenerator:
                 f"AI generation failed: {e.message}",
                 order_id=order.id,
             )
+
+    async def _create_cast_by_us_spell(
+        self,
+        order: Order,
+        spell_type: Optional[SpellType],
+    ) -> Spell:
+        """Create a spell record for CAST_BY_US orders.
+
+        No AI generation is needed - the spell content is a marker indicating
+        that the cast-by-us email template should be used during delivery.
+
+        Args:
+            order: The Order
+            spell_type: The SpellType model (may be None)
+
+        Returns:
+            The created Spell model
+        """
+        spell_type_name = spell_type.name if spell_type else (order.raw_spell_type or "Custom Spell")
+
+        # Create placeholder content - actual email uses the template
+        content = f"""[CAST BY US]
+
+This {spell_type_name} spell was cast on behalf of {order.customer_name or 'the customer'}.
+
+The customer's intention:
+{order.intention or 'Not specified'}
+
+---
+Note: This is a "Cast by Us" order. No AI-generated instructions are included.
+The delivery email will use the standard cast-by-us template."""
+
+        # Get next version number
+        version = await self._get_next_version(order.id)
+
+        # Mark any existing spells as not current
+        existing_spells = await self.db.execute(
+            select(Spell).where(Spell.order_id == order.id, Spell.is_current == True)
+        )
+        for existing in existing_spells.scalars():
+            existing.is_current = False
+
+        # Create spell record
+        spell = Spell(
+            order_id=order.id,
+            version=version,
+            content=content,
+            prompt_used="[Cast by us - no AI generation]",
+            model_used="none",
+            is_current=True,
+            is_approved=False,
+        )
+        self.db.add(spell)
+
+        # Set order status directly to REVIEW (skip GENERATING)
+        order.status = OrderStatus.REVIEW
+        await self.db.commit()
+        await self.db.refresh(spell)
+
+        logger.info(f"Created cast-by-us spell v{version} for order {order.id}")
+
+        return spell
 
     async def regenerate_spell(
         self,
