@@ -129,6 +129,7 @@ async def create_test_order(
         order_total_cents=order_total_cents,
         currency_code=currency_code,
         status=OrderStatus.PENDING,
+        is_test_order=True,  # Mark as test order for filtering
     )
 
     db.add(order)

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.order import OrderStatus
 from app.schemas.spell import SpellDetail
@@ -35,6 +35,7 @@ class OrderSummary(BaseModel):
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
+    is_test_order: bool = False
 
 
 class OrderDetail(OrderSummary):
@@ -60,3 +61,56 @@ class OrderList(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+class ManualOrderCreate(BaseModel):
+    """Request schema for creating a manual production order.
+
+    This is for real orders entered manually before Etsy integration is ready.
+    Unlike test orders, these are flagged as real orders and included in metrics.
+    """
+
+    customer_name: str = Field(..., min_length=1, max_length=255)
+    customer_email: str = Field(..., pattern=r"^[^@]+@[^@]+\.[^@]+$")
+
+    spell_type: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Spell type slug (must exist in database)",
+    )
+    intention: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Customer's intention/wish for the spell",
+    )
+    personalization_data: Optional[dict] = Field(
+        default=None,
+        description="Additional personalization key-value pairs",
+    )
+
+    order_total_cents: int = Field(..., ge=0, description="Price paid in cents")
+    currency_code: str = Field(default="USD", max_length=10)
+
+    etsy_order_date: datetime = Field(
+        ...,
+        description="When the order was received from Etsy (copy from Etsy receipt)",
+    )
+
+
+class ManualOrderResponse(BaseModel):
+    """Response schema for created manual order."""
+
+    id: int
+    etsy_receipt_id: int
+    customer_name: str
+    customer_email: str
+    raw_spell_type: str
+    intention: str
+    status: str
+    order_total_cents: int
+    etsy_order_date: datetime
+    created_at: datetime
+    is_test_order: bool
+    message: str

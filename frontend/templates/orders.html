@@ -20,7 +20,7 @@
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex flex-wrap gap-4">
+        <div class="flex flex-wrap gap-4 items-center">
             <select x-model="filters.status" @change="loadOrders()" class="px-4 py-2 border border-gray-300 rounded-md">
                 <option value="">All Statuses</option>
                 <option value="pending">Pending</option>
@@ -30,6 +30,11 @@
                 <option value="delivered">Delivered</option>
                 <option value="failed">Failed</option>
             </select>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" x-model="filters.includeTestOrders" @change="loadOrders()"
+                       class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <span class="text-sm text-gray-700">Show test orders</span>
+            </label>
         </div>
     </div>
 
@@ -58,9 +63,12 @@
                     </tr>
                 </template>
                 <template x-for="order in orders" :key="order.id">
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-gray-50" :class="order.is_test_order ? 'bg-yellow-50' : ''">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-medium text-gray-900" x-text="'#' + order.etsy_receipt_id"></span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-gray-900" x-text="'#' + order.etsy_receipt_id"></span>
+                                <span x-show="order.is_test_order" class="px-1.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">TEST</span>
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm text-gray-900" x-text="order.customer_name || 'Unknown'"></span>
@@ -118,7 +126,8 @@
             total: 0,
             pages: 0,
             filters: {
-                status: new URLSearchParams(window.location.search).get('status') || ''
+                status: new URLSearchParams(window.location.search).get('status') || '',
+                includeTestOrders: false
             },
 
             async init() {
@@ -132,7 +141,8 @@
                 try {
                     const params = new URLSearchParams({
                         page: this.page,
-                        per_page: this.perPage
+                        per_page: this.perPage,
+                        include_test_orders: this.filters.includeTestOrders
                     });
                     if (this.filters.status) params.append('status', this.filters.status);
 

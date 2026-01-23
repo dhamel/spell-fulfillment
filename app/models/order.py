@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -63,6 +63,9 @@ class Order(Base, TimestampMixin):
     )
     order_total_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     currency_code: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
+
+    # Test order flag - distinguishes test orders from real production orders
+    is_test_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     spell_type: Mapped[Optional["SpellType"]] = relationship(

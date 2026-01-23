@@ -6,29 +6,36 @@
 <div class="space-y-6" x-data="metricsPage()">
     <h1 class="text-2xl font-bold text-gray-800">Metrics & Analytics</h1>
 
-    <!-- Period Selector -->
+    <!-- Period Selector and Filters -->
     <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex gap-2">
-            <button
-                @click="period = 'day'; loadMetrics()"
-                :class="period === 'day' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="px-4 py-2 rounded-md"
-            >Today</button>
-            <button
-                @click="period = 'week'; loadMetrics()"
-                :class="period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="px-4 py-2 rounded-md"
-            >This Week</button>
-            <button
-                @click="period = 'month'; loadMetrics()"
-                :class="period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="px-4 py-2 rounded-md"
-            >This Month</button>
-            <button
-                @click="period = 'year'; loadMetrics()"
-                :class="period === 'year' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
-                class="px-4 py-2 rounded-md"
-            >This Year</button>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex gap-2">
+                <button
+                    @click="period = 'day'; loadMetrics()"
+                    :class="period === 'day' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                    class="px-4 py-2 rounded-md"
+                >Today</button>
+                <button
+                    @click="period = 'week'; loadMetrics()"
+                    :class="period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                    class="px-4 py-2 rounded-md"
+                >This Week</button>
+                <button
+                    @click="period = 'month'; loadMetrics()"
+                    :class="period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                    class="px-4 py-2 rounded-md"
+                >This Month</button>
+                <button
+                    @click="period = 'year'; loadMetrics()"
+                    :class="period === 'year' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'"
+                    class="px-4 py-2 rounded-md"
+                >This Year</button>
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" x-model="includeTestOrders" @change="loadMetrics()"
+                       class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                <span class="text-sm text-gray-700">Include test orders</span>
+            </label>
         </div>
     </div>
 
@@ -142,6 +149,7 @@
     function metricsPage() {
         return {
             period: 'week',
+            includeTestOrders: false,
             orderMetrics: { total: 0, by_status: {}, by_spell_type: {} },
             satisfaction: { average: 0, total: 0, distribution: {} },
             dashboard: { orders: {}, tasks: {}, satisfaction: {}, api_status: {} },
@@ -157,16 +165,18 @@
                     return;
                 }
 
+                const testParam = `include_test_orders=${this.includeTestOrders}`;
+
                 try {
                     // Load all metrics in parallel
                     const [orderRes, satRes, dashRes] = await Promise.all([
-                        fetch(`/api/v1/metrics/orders?period=${this.period}`, {
+                        fetch(`/api/v1/metrics/orders?period=${this.period}&${testParam}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         }),
-                        fetch('/api/v1/metrics/satisfaction', {
+                        fetch(`/api/v1/metrics/satisfaction?${testParam}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         }),
-                        fetch('/api/v1/metrics/dashboard', {
+                        fetch(`/api/v1/metrics/dashboard?${testParam}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         })
                     ]);

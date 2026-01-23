@@ -88,3 +88,9 @@ uploads/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Claude Code / AI assistant files
+CLAUDE.md
+.claude/
+.claude*
+DEVELOPMENT_PLAN.md

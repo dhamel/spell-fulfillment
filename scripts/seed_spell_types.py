@@ -40,19 +40,28 @@ DEFAULT_SPELL_TYPES = [
     },
 ]
 
-DEFAULT_PROMPT_TEMPLATE = """You are a skilled spell crafter creating a personalized {spell_type} spell.
+DEFAULT_PROMPT_TEMPLATE = """Create a personalized {{ spell_type }} spell for {{ customer_name }}.
 
-Customer Name: {customer_name}
-Customer's Intention: {intention}
+**Customer's Intention:**
+{{ intention }}
+
+{% if personalization %}
+**Additional Details:**
+{% for key, value in personalization.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
 
 Create a meaningful, personalized spell that:
-1. Addresses the customer by name
+1. Opens with a warm greeting using their name
 2. Incorporates their specific intention
 3. Uses appropriate magical language and imagery
 4. Provides clear instructions for the ritual
 5. Includes any necessary materials or timing recommendations
+6. Closes with words of encouragement
 
-Write the spell in a warm, mystical tone that feels authentic and personal."""
+Write the spell in a warm, mystical tone that feels authentic and personal.
+Approximately 300-500 words."""
 
 
 async def seed_spell_types():

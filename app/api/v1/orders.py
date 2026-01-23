@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_current_user
 from app.models.order import Order, OrderStatus
-from app.schemas.order import OrderList, OrderDetail, OrderUpdate
+from app.models.spell_type import SpellType
+from app.schemas.order import OrderList, OrderDetail, OrderUpdate, ManualOrderCreate, ManualOrderResponse
 from app.schemas.spell import SpellGenerateRequest, SpellGenerateResponse
 
 router = APIRouter()
@@ -21,12 +22,16 @@ async def list_orders(
     spell_type_id: Optional[int] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
+    include_test_orders: bool = Query(False, description="Include test orders in results"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_current_user),
 ) -> OrderList:
-    """List orders with optional filters and pagination."""
+    """List orders with optional filters and pagination.
+
+    By default, test orders are excluded. Set include_test_orders=true to include them.
+    """
     query = select(Order)
 
     # Apply filters
@@ -38,6 +43,10 @@ async def list_orders(
         query = query.where(Order.created_at >= date_from)
     if date_to:
         query = query.where(Order.created_at <= date_to)
+
+    # Filter out test orders unless explicitly requested
+    if not include_test_orders:
+        query = query.where(Order.is_test_order == False)
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -111,6 +120,7 @@ async def get_order(
         status=order.status,
         created_at=order.created_at,
         updated_at=order.updated_at,
+        is_test_order=order.is_test_order,
         customer_email=order.customer_email,
         etsy_listing_id=order.etsy_listing_id,
         etsy_transaction_id=order.etsy_transaction_id,
@@ -210,3 +220,99 @@ async def sync_orders(
             status_code=e.status_code or 500,
             detail=str(e),
         )
+
+
+@router.post("/manual", response_model=ManualOrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_manual_order(
+    order_data: ManualOrderCreate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_current_user),
+) -> ManualOrderResponse:
+    """Create a manual production order.
+
+    Use this endpoint to manually enter real Etsy orders before the Etsy API
+    integration is fully set up. These orders are treated as real production
+    orders and included in all metrics.
+
+    A unique receipt ID is generated using the prefix 88 (to distinguish from
+    test orders which use 99 and real Etsy orders which use their actual IDs).
+    """
+    import random
+    import time
+
+    # Validate spell type exists in database
+    result = await db.execute(
+        select(SpellType).where(
+            SpellType.slug == order_data.spell_type.lower(),
+            SpellType.is_active == True
+        )
+    )
+    spell_type_obj = result.scalar_one_or_none()
+
+    if not spell_type_obj:
+        # Try matching by name as fallback
+        result = await db.execute(
+            select(SpellType).where(
+                func.lower(SpellType.name) == order_data.spell_type.lower(),
+                SpellType.is_active == True
+            )
+        )
+        spell_type_obj = result.scalar_one_or_none()
+
+    if not spell_type_obj:
+        # Get available types for error message
+        result = await db.execute(
+            select(SpellType.name, SpellType.slug).where(SpellType.is_active == True)
+        )
+        available = [f"{name} ({slug})" for name, slug in result.all()]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid spell_type '{order_data.spell_type}'. Available types: {', '.join(available)}",
+        )
+
+    # Generate unique receipt ID with prefix 88 (manual orders)
+    timestamp_part = int(time.time() * 1000) % 1000000000
+    random_part = random.randint(1000, 9999)
+    receipt_id = int(f"88{timestamp_part}{random_part}")
+
+    # Build raw_spell_type name
+    raw_spell_type = f"{spell_type_obj.name} Spell - Personalized"
+
+    # Build personalization data with source marker
+    final_personalization = {"source": "manual_order"}
+    if order_data.personalization_data:
+        final_personalization.update(order_data.personalization_data)
+
+    order = Order(
+        etsy_receipt_id=receipt_id,
+        customer_name=order_data.customer_name,
+        customer_email=order_data.customer_email,
+        spell_type_id=spell_type_obj.id,
+        raw_spell_type=raw_spell_type,
+        intention=order_data.intention,
+        personalization_data=final_personalization,
+        etsy_order_date=order_data.etsy_order_date,
+        order_total_cents=order_data.order_total_cents,
+        currency_code=order_data.currency_code,
+        status=OrderStatus.PENDING,
+        is_test_order=False,  # This is a real production order
+    )
+
+    db.add(order)
+    await db.commit()
+    await db.refresh(order)
+
+    return ManualOrderResponse(
+        id=order.id,
+        etsy_receipt_id=order.etsy_receipt_id,
+        customer_name=order.customer_name,
+        customer_email=order.customer_email,
+        raw_spell_type=order.raw_spell_type,
+        intention=order.intention,
+        status=order.status.value,
+        order_total_cents=order.order_total_cents,
+        etsy_order_date=order.etsy_order_date,
+        created_at=order.created_at,
+        is_test_order=order.is_test_order,
+        message="Manual order created successfully. Ready for spell generation.",
+    )
