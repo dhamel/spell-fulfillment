@@ -128,7 +128,7 @@ def _build_spell_email_html(
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨ Your {spell_type.title()} Spell ✨
+                                ✨Your {spell_type.title()}✨
                             </h1>
                         </td>
                     </tr>
@@ -236,7 +236,7 @@ async def send_cast_by_us_email(
         raise EmailDeliveryError("SendGrid API key not configured")
 
     if not subject:
-        subject = f"Your {spell_type.title()} Spell Has Been Cast"
+        subject = f"Your {spell_type.title()} Has Been Cast"
 
     # Build the email content
     html_content = _build_cast_by_us_html(customer_name, spell_type, intention)
@@ -307,7 +307,7 @@ def _build_cast_by_us_html(customer_name: str, spell_type: str, intention: str) 
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨ Your {spell_type.title()} Spell Has Been Cast ✨
+                                ✨ Your{spell_type.title()} Has Been Cast✨
                             </h1>
                         </td>
                     </tr>
@@ -398,7 +398,7 @@ def _build_cast_by_us_plain(customer_name: str, spell_type: str, intention: str)
     """Build the plain text email content for cast-by-us confirmation."""
     return f"""Dear {customer_name},
 
-Your {spell_type.title()} spell has been cast. The forces it has unleashed are now active, and we have taken your expressed desire and formed it into a magical request to the Universal Spirit, seeking what you have asked to be manifested.
+Your {spell_type.title()} has been cast on your behalf. The forces it has unleashed are now active, and we have taken your expressed desire and formed it into a magical request to the Universal Spirit, seeking what you have asked to be manifested.
 
 ---
 
@@ -458,7 +458,7 @@ async def send_combination_email(
         raise EmailDeliveryError("SendGrid API key not configured")
 
     if not subject:
-        subject = f"Your {spell_type.title()} Spell - Cast & Instructions"
+        subject = f"Your {spell_type.title()} - Cast & Enhancement Instructions"
 
     # Build the email content
     html_content = _build_combination_html(customer_name, spell_type, intention, spell_instructions)
@@ -533,7 +533,7 @@ def _build_combination_html(
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨ Your {spell_type.title()} Spell ✨
+                                ✨Your {spell_type.title()}✨
                             </h1>
                             <p style="color: #c9b896; font-size: 14px; margin: 10px 0 0;">Cast by Us + Your Personal Instructions</p>
                         </td>
@@ -633,7 +633,7 @@ def _build_combination_plain(
     """Build the plain text email content for combination (cast-by-us + customer cast)."""
     return f"""Dear {customer_name},
 
-Your {spell_type.title()} Spell - Cast by Us + Your Personal Instructions
+Your {spell_type.title()} - Cast by Us + Your Personal Instructions
 
 =====================================
 PART 1: YOUR SPELL HAS BEEN CAST
@@ -697,11 +697,11 @@ def get_email_preview(
         EmailPreviewResult with subject, HTML, and plain text content
     """
     if cast_type == "cast_by_us":
-        subject = f"Your {spell_type.title()} Spell Has Been Cast"
+        subject = f"Your {spell_type.title()} Has Been Cast"
         html_content = _build_cast_by_us_html(customer_name, spell_type, intention)
         plain_content = _build_cast_by_us_plain(customer_name, spell_type, intention)
     elif cast_type == "combination":
-        subject = f"Your {spell_type.title()} Spell - Cast & Instructions"
+        subject = f"Your {spell_type.title()} - Cast & Instructions"
         html_content = _build_combination_html(
             customer_name, spell_type, intention, spell_content or ""
         )
@@ -709,7 +709,7 @@ def get_email_preview(
             customer_name, spell_type, intention, spell_content or ""
         )
     else:  # customer_cast (default)
-        subject = f"Your Personalized {spell_type.title()} Spell is Ready"
+        subject = f"Your Personalized {spell_type.title()} is Ready"
         html_content = _build_spell_email_html(
             customer_name, spell_content or "", spell_type
         )
