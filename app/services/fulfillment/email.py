@@ -69,13 +69,21 @@ async def send_spell_email(
             "email": settings.FROM_EMAIL,
             "name": settings.FROM_NAME,
         },
+        "reply_to": {
+            "email": settings.FROM_EMAIL,
+            "name": settings.FROM_NAME,
+        },
+        "headers": {
+            "List-Unsubscribe": f"<mailto:{settings.FROM_EMAIL}?subject=Unsubscribe>",
+            "Precedence": "bulk",
+        },
         "content": [
             {"type": "text/plain", "value": plain_content},
             {"type": "text/html", "value": html_content},
         ],
         "tracking_settings": {
             "click_tracking": {"enable": False},
-            "open_tracking": {"enable": True},
+            "open_tracking": {"enable": False},
         },
     }
 
@@ -128,7 +136,7 @@ def _build_spell_email_html(
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨Your {spell_type.title()}✨
+                                Your {spell_type.title()}
                             </h1>
                         </td>
                     </tr>
@@ -254,13 +262,21 @@ async def send_cast_by_us_email(
             "email": settings.FROM_EMAIL,
             "name": settings.FROM_NAME,
         },
+        "reply_to": {
+            "email": settings.FROM_EMAIL,
+            "name": settings.FROM_NAME,
+        },
+        "headers": {
+            "List-Unsubscribe": f"<mailto:{settings.FROM_EMAIL}?subject=Unsubscribe>",
+            "Precedence": "bulk",
+        },
         "content": [
             {"type": "text/plain", "value": plain_content},
             {"type": "text/html", "value": html_content},
         ],
         "tracking_settings": {
             "click_tracking": {"enable": False},
-            "open_tracking": {"enable": True},
+            "open_tracking": {"enable": False},
         },
     }
 
@@ -307,7 +323,7 @@ def _build_cast_by_us_html(customer_name: str, spell_type: str, intention: str) 
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨ Your{spell_type.title()} Has Been Cast✨
+                                Your {spell_type.title()} Has Been Cast
                             </h1>
                         </td>
                     </tr>
@@ -476,13 +492,21 @@ async def send_combination_email(
             "email": settings.FROM_EMAIL,
             "name": settings.FROM_NAME,
         },
+        "reply_to": {
+            "email": settings.FROM_EMAIL,
+            "name": settings.FROM_NAME,
+        },
+        "headers": {
+            "List-Unsubscribe": f"<mailto:{settings.FROM_EMAIL}?subject=Unsubscribe>",
+            "Precedence": "bulk",
+        },
         "content": [
             {"type": "text/plain", "value": plain_content},
             {"type": "text/html", "value": html_content},
         ],
         "tracking_settings": {
             "click_tracking": {"enable": False},
-            "open_tracking": {"enable": True},
+            "open_tracking": {"enable": False},
         },
     }
 
@@ -533,7 +557,7 @@ def _build_combination_html(
                     <tr>
                         <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
                             <h1 style="color: #f0e6d2; margin: 0; font-size: 28px; font-weight: normal; letter-spacing: 2px;">
-                                ✨Your {spell_type.title()}✨
+                                Your {spell_type.title()}
                             </h1>
                             <p style="color: #c9b896; font-size: 14px; margin: 10px 0 0;">Cast by Us + Your Personal Instructions</p>
                         </td>
